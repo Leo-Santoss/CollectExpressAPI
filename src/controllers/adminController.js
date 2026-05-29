@@ -206,6 +206,9 @@ const adminController = {
         WHERE status_pagamento = 'PAGO'
       `;
       const total_revenue = Number(totalRevenueResult[0].total);
+      
+      // 3.1 Lucro da Plataforma (5% do total movimentado)
+      const lucro_plataforma = total_revenue * 0.05;
 
       // 4. Caçambeiros ativos (com pelo menos uma caçamba disponível)
       const activeCacambeirosResult = await sql`
@@ -263,6 +266,7 @@ const adminController = {
         total_users,
         total_orders,
         total_revenue,
+        lucro_plataforma,
         active_cacambeiros,
         orders_by_status,
         orders_over_time

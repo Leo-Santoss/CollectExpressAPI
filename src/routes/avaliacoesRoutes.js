@@ -12,10 +12,9 @@ router.post(
   avaliacoesController.criar
 );
 
-// GET /api/avaliacoes/cacambeiro/:id - Lista avaliações de um caçambeiro (qualquer perfil autenticado)
+// GET /api/avaliacoes/cacambeiro/:id - Lista avaliações de um caçambeiro (Público)
 router.get(
   "/cacambeiro/:id",
-  authMiddleware,
   avaliacoesController.listarPorCacambeiro
 );
 

@@ -127,7 +127,7 @@ const loginSchema = {
   senha: {
     required: true,
     type: "string",
-    minLength: 8,
+    minLength: 6,
     maxLength: 128
   }
 };

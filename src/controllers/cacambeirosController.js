@@ -21,10 +21,14 @@ const cacambeirosController = {
         WHERE cacambeiro_id = ${cacambeiroId}
       `;
 
+      const totalRevenueBruto = orderStats.total_revenue;
+      const totalRevenueLiquido = totalRevenueBruto * 0.95;
+
       return res.status(200).json({
         total_orders: orderStats.total_orders,
         active_orders: orderStats.active_orders,
-        total_revenue: orderStats.total_revenue,
+        total_revenue_bruto: totalRevenueBruto,
+        total_revenue: totalRevenueLiquido, // Keep original property to avoid breaking existing frontend logic where possible
         nota_media: reviewStats.nota_media ?? null
       });
     } catch (error) {
@@ -89,13 +93,27 @@ const cacambeirosController = {
       `;
 
       const totalRevenue = orders.reduce((sum, order) => sum + (Number(order.preco_final) || 0), 0);
+      const taxaPlataforma = totalRevenue * 0.05;
+      const totalLiquido = totalRevenue * 0.95;
+
+      const pedidosComTaxa = orders.map(order => {
+        const valorBruto = Number(order.preco_final) || 0;
+        return {
+          ...order,
+          valor_bruto: valorBruto,
+          taxa_plataforma: valorBruto * 0.05,
+          valor_liquido: valorBruto * 0.95,
+        };
+      });
 
       return res.status(200).json({
         resumo_mensal: {
           total: totalRevenue,
+          taxa_plataforma: taxaPlataforma,
+          total_liquido: totalLiquido,
           quantidade: orders.length
         },
-        pedidos: orders
+        pedidos: pedidosComTaxa
       });
     } catch (error) {
       console.error("Erro ao buscar financeiro do caçambeiro:", error);

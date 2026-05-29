@@ -33,16 +33,18 @@ const criarCacambaSchema = {
   }
 };
 
-// --- Todas as rotas requerem autenticação ---
-router.use(authMiddleware);
+// --- Rotas públicas (leitura) ---
 
 // Rota: GET /api/cacambas
-// Objetivo: Listar caçambas disponíveis no marketplace (qualquer perfil autenticado)
+// Objetivo: Listar caçambas disponíveis no marketplace (público)
 router.get("/", cacambasController.listar);
 
 // Rota: GET /api/cacambas/:id
-// Objetivo: Detalhes completos da caçamba com info do cacambeiro e avaliações
+// Objetivo: Detalhes completos da caçamba com info do cacambeiro e avaliações (público)
 router.get("/:id", cacambasController.detalhe);
+
+// --- Rotas protegidas (Requerem autenticação) ---
+router.use(authMiddleware);
 
 // --- Rotas que requerem perfil CACAMBEIRO ---
 

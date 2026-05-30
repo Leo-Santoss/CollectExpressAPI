@@ -3,6 +3,7 @@ const router = express.Router();
 const authController = require("../controllers/authController");
 const validationMiddleware = require("../middlewares/validationMiddleware");
 const { rateLimitMiddleware } = require("../middlewares/rateLimitMiddleware");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 // Schema de validação para registro
 const registerSchema = {
@@ -180,6 +181,12 @@ router.post(
   "/reset-password",
   validationMiddleware(resetPasswordSchema),
   authController.resetPassword
+);
+
+router.post(
+  "/logout",
+  authMiddleware,
+  authController.logout
 );
 
 module.exports = router;

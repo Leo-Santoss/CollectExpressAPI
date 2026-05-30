@@ -1,39 +1,7 @@
-/**
- * Middleware de rate limiting para login
- * Rastreia tentativas de login falhadas por IP usando um Map em memória.
- *
- * Regras:
- *   - Bloqueia após 5 tentativas falhadas dentro de uma janela de 15 minutos
- *   - Retorna 429 com informação de retry-after quando bloqueado
- *   - Exporta recordFailedAttempt(ip) para o controller registrar falhas
- *   - Limpeza automática de entradas expiradas para evitar vazamento de memória
- */
+const sql = require("../config/db");
 
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutos em milissegundos
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // Limpeza a cada 5 minutos
-
-// Armazena tentativas por IP: { attempts: number, firstAttempt: number }
-const attempts = new Map();
-
-/**
- * Limpa entradas expiradas do Map para evitar vazamento de memória
- */
-function cleanupExpiredEntries() {
-  const now = Date.now();
-  for (const [ip, record] of attempts.entries()) {
-    if (now - record.firstAttempt >= WINDOW_MS) {
-      attempts.delete(ip);
-    }
-  }
-}
-
-// Inicia limpeza periódica
-const cleanupTimer = setInterval(cleanupExpiredEntries, CLEANUP_INTERVAL_MS);
-// Permite que o processo encerre sem esperar o timer
-if (cleanupTimer.unref) {
-  cleanupTimer.unref();
-}
 
 /**
  * Obtém o IP do request
@@ -47,68 +15,73 @@ function getClientIp(req) {
 /**
  * Middleware que verifica se o IP está bloqueado por excesso de tentativas
  */
-function rateLimitMiddleware(req, res, next) {
-  const ip = getClientIp(req);
-  const now = Date.now();
-  const record = attempts.get(ip);
+async function rateLimitMiddleware(req, res, next) {
+  try {
+    const ip = getClientIp(req);
+    const now = Date.now();
+    
+    // Limpeza passiva de registros expirados
+    await sql`DELETE FROM login_attempts WHERE first_attempt < ${now - WINDOW_MS}`;
 
-  // Se não há registro para este IP, permite a requisição
-  if (!record) {
+    const rows = await sql`SELECT attempts, first_attempt FROM login_attempts WHERE ip = ${ip}`;
+    
+    if (rows.length === 0) {
+      return next();
+    }
+
+    const record = rows[0];
+
+    // Se atingiu o limite de tentativas dentro da janela, bloqueia
+    if (record.attempts >= MAX_ATTEMPTS) {
+      const elapsedMs = now - Number(record.first_attempt);
+      const remainingMs = WINDOW_MS - elapsedMs;
+      const remainingSeconds = Math.ceil(remainingMs / 1000);
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
+
+      return res.status(429).json({
+        error: `Muitas tentativas de login. Tente novamente em ${remainingMinutes} minutos.`,
+        retry_after: remainingSeconds
+      });
+    }
+
+    return next();
+  } catch (error) {
+    console.error("Erro no rateLimitMiddleware:", error);
+    // Em caso de erro no banco, permite a requisição para não bloquear o usuário por falha interna
     return next();
   }
-
-  // Se a janela expirou, limpa o registro e permite
-  if (now - record.firstAttempt >= WINDOW_MS) {
-    attempts.delete(ip);
-    return next();
-  }
-
-  // Se atingiu o limite de tentativas dentro da janela, bloqueia
-  if (record.attempts >= MAX_ATTEMPTS) {
-    const elapsedMs = now - record.firstAttempt;
-    const remainingMs = WINDOW_MS - elapsedMs;
-    const remainingSeconds = Math.ceil(remainingMs / 1000);
-    const remainingMinutes = Math.ceil(remainingMs / 60000);
-
-    return res.status(429).json({
-      error: `Muitas tentativas de login. Tente novamente em ${remainingMinutes} minutos.`,
-      retry_after: remainingSeconds
-    });
-  }
-
-  // Ainda não atingiu o limite, permite a requisição
-  return next();
 }
 
 /**
  * Registra uma tentativa de login falhada para o IP fornecido.
- * Deve ser chamada pelo controller de login quando a autenticação falha.
  * @param {string} ip - Endereço IP do cliente
  */
-function recordFailedAttempt(ip) {
-  const now = Date.now();
-  const record = attempts.get(ip);
-
-  if (!record || now - record.firstAttempt >= WINDOW_MS) {
-    // Primeira tentativa ou janela expirada: inicia novo registro
-    attempts.set(ip, { attempts: 1, firstAttempt: now });
-  } else {
-    // Incrementa tentativas dentro da janela ativa
-    record.attempts += 1;
+async function recordFailedAttempt(ip) {
+  try {
+    const now = Date.now();
+    const rows = await sql`SELECT attempts FROM login_attempts WHERE ip = ${ip}`;
+    
+    if (rows.length === 0) {
+      await sql`INSERT INTO login_attempts (ip, attempts, first_attempt) VALUES (${ip}, 1, ${now})`;
+    } else {
+      await sql`UPDATE login_attempts SET attempts = attempts + 1 WHERE ip = ${ip}`;
+    }
+  } catch (error) {
+    console.error("Erro ao registrar tentativa falha de login:", error);
   }
 }
 
 /**
- * Limpa o registro de tentativas para um IP (ex: após login bem-sucedido)
+ * Limpa o registro de tentativas para um IP
  * @param {string} ip - Endereço IP do cliente
  */
-function resetAttempts(ip) {
-  attempts.delete(ip);
+async function resetAttempts(ip) {
+  try {
+    await sql`DELETE FROM login_attempts WHERE ip = ${ip}`;
+  } catch (error) {
+    console.error("Erro ao limpar tentativas de login:", error);
+  }
 }
-
-// Exporta para uso em testes (acesso ao Map interno)
-rateLimitMiddleware._attempts = attempts;
-rateLimitMiddleware._cleanupExpiredEntries = cleanupExpiredEntries;
 
 module.exports = {
   rateLimitMiddleware,

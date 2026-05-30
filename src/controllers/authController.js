@@ -118,6 +118,19 @@ const authController = {
     }
   },
 
+  async logout(req, res) {
+    try {
+      const token = req.token;
+      if (token) {
+        await sql`INSERT INTO revoked_tokens (token, revoked_at) VALUES (${token}, NOW()) ON CONFLICT DO NOTHING`;
+      }
+      return res.status(200).json({ message: "Logout realizado com sucesso" });
+    } catch (error) {
+      console.error("Erro no logout:", error);
+      return res.status(500).json({ error: "Erro interno no servidor" });
+    }
+  },
+
   /**
    * POST /api/auth/forgot-password
    * Generates a single-use recovery token (15 min expiry).

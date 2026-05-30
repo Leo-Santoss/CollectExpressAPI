@@ -263,13 +263,13 @@ const adminController = {
       }
 
       return res.status(200).json({
-        total_users,
-        total_orders,
-        total_revenue,
+        total_usuarios: total_users,
+        total_pedidos: total_orders,
+        receita_total: total_revenue,
         lucro_plataforma,
-        active_cacambeiros,
-        orders_by_status,
-        orders_over_time
+        cacambeiros_ativos: active_cacambeiros,
+        pedidos_por_status: orders_by_status,
+        pedidos_ao_longo_do_tempo: orders_over_time
       });
     } catch (error) {
       console.error("Erro no dashboard admin:", error);

@@ -1,6 +1,16 @@
 const sql = require("../config/db");
 const bcrypt = require("bcryptjs");
 
+function mascararDocumento(doc) {
+  if (!doc) return doc;
+  const docLimpo = doc.replace(/\D/g, "");
+  if (docLimpo.length === 11) {
+    return `***.***.${docLimpo.substring(6, 9)}-${docLimpo.substring(9, 11)}`;
+  } else if (docLimpo.length === 14) {
+    return `**.***.${docLimpo.substring(5, 8)}/${docLimpo.substring(8, 12)}-${docLimpo.substring(12, 14)}`;
+  }
+  return "***";
+}
 const usuariosController = {
   // Buscar perfil do usuário autenticado
   async getPerfil(req, res) {
@@ -155,8 +165,14 @@ const usuariosController = {
         LIMIT ${limit} OFFSET ${offset}
       `;
 
+      // Mascarar documentos
+      const usuariosMascarados = usuarios.map(u => ({
+        ...u,
+        documento: mascararDocumento(u.documento)
+      }));
+
       return res.status(200).json({
-        data: usuarios,
+        data: usuariosMascarados,
         total,
         page,
         totalPages
@@ -184,6 +200,7 @@ const usuariosController = {
       }
 
       const usuario = resultado[0];
+      usuario.documento = mascararDocumento(usuario.documento);
 
       // Buscar endereços do usuário
       const enderecos = await sql`

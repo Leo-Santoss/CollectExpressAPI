@@ -17,6 +17,9 @@ router.post("/itens", carrinhoController.adicionarItem);
 // PUT /api/carrinho/itens/:id - Atualizar quantidade de um item
 router.put("/itens/:id", carrinhoController.atualizarItem);
 
+// DELETE /api/carrinho/itens/:id - Remover item específico do carrinho
+router.delete("/itens/:id", carrinhoController.removerItem);
+
 // DELETE /api/carrinho - Limpar carrinho
 router.delete("/", carrinhoController.limpar);
 

@@ -13,6 +13,11 @@ const criarCacambaSchema = {
     minLength: 1,
     maxLength: 100
   },
+  foto_url: {
+    required: false,
+    type: "string",
+    pattern: "^https:\\/\\/.*"
+  },
   tipo_residuo: {
     required: true,
     type: "string",

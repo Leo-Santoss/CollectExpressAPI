@@ -1,12 +1,37 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 
 // Inicializa o aplicativo Express
 const app = express();
 
 // --- Middlewares Globais ---
-app.use(cors()); // Permite que o front-end faça requisições para a API
+// Permite que o front-end faça requisições para a API (Restrito + Localhost para Dev)
+const allowedOrigins = [
+  'https://app.collectexpress.com',
+  'http://localhost:8081',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || origin.startsWith('http://192.168.')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
+
+// Rate Limiting Global: máximo 100 requisições por minuto por IP
+const globalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minuto
+  max: 100, // Limite de cada IP para 100 reqs por janela
+  message: { error: "Muitas requisições deste IP. Tente novamente em 1 minuto." }
+});
+app.use(globalLimiter);
+
 app.use(express.json()); // Permite que a API receba e envie dados no formato JSON
 
 // --- Rota de Health Check ---

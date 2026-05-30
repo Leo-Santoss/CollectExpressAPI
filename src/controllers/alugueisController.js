@@ -206,45 +206,39 @@ const alugueisController = {
       const offset = (page - 1) * limit;
       const { status_aluguel, status_pagamento, search } = req.query;
 
-      // Build WHERE conditions and params dynamically
-      const conditions = [];
-      const params = [];
+      let conditionsQuery = sql`WHERE 1=1`;
 
       if (status_aluguel) {
-        params.push(status_aluguel);
-        conditions.push(`a.status_aluguel = $${params.length}`);
+        conditionsQuery = sql`${conditionsQuery} AND a.status_aluguel = ${status_aluguel}`;
       }
 
       if (status_pagamento) {
-        params.push(status_pagamento);
-        conditions.push(`a.status_pagamento = $${params.length}`);
+        conditionsQuery = sql`${conditionsQuery} AND a.status_pagamento = ${status_pagamento}`;
       }
 
       if (search && search.length >= 1) {
         const searchPattern = `%${search}%`;
-        params.push(searchPattern);
-        conditions.push(`(uc.nome_completo ILIKE $${params.length} OR uk.nome_completo ILIKE $${params.length})`);
+        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
+        if (isUUID) {
+          conditionsQuery = sql`${conditionsQuery} AND a.id = ${search}`;
+        } else {
+          conditionsQuery = sql`${conditionsQuery} AND (uc.nome_completo ILIKE ${searchPattern} OR uk.nome_completo ILIKE ${searchPattern})`;
+        }
       }
 
-      const whereClause = conditions.length > 0
-        ? `WHERE ${conditions.join(" AND ")}`
-        : "";
-
       // Count total for pagination
-      const countQuery = `
+      const countResult = await sql`
         SELECT COUNT(*)::int AS total
         FROM alugueis a
         JOIN usuarios uc ON uc.id = a.consumidor_id
         JOIN usuarios uk ON uk.id = a.cacambeiro_id
-        ${whereClause}
+        ${conditionsQuery}
       `;
-      const countResult = await sql.query(countQuery, params);
       const total = countResult[0].total;
       const totalPages = Math.ceil(total / limit);
 
       // Fetch paginated orders with consumer/cacambeiro names and address
-      const dataParams = [...params, limit, offset];
-      const dataQuery = `
+      const pedidos = await sql`
         SELECT a.*,
                uc.nome_completo AS consumidor_nome,
                uk.nome_completo AS cacambeiro_nome,
@@ -253,11 +247,10 @@ const alugueisController = {
         JOIN usuarios uc ON uc.id = a.consumidor_id
         JOIN usuarios uk ON uk.id = a.cacambeiro_id
         LEFT JOIN enderecos e ON e.id = a.endereco_id
-        ${whereClause}
+        ${conditionsQuery}
         ORDER BY a.data_pedido DESC
-        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+        LIMIT ${limit} OFFSET ${offset}
       `;
-      const pedidos = await sql.query(dataQuery, dataParams);
 
       return res.status(200).json({
         data: pedidos,

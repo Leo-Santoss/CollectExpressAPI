@@ -52,9 +52,12 @@ const carrinhoController = {
           cacamba_id: item.cacamba_id,
           quantidade: item.quantidade,
           dias_aluguel: item.dias_aluguel,
-          nome: item.nome,
-          tipo_residuo: item.tipo_residuo,
-          preco_diaria: item.preco_diaria
+          cacamba: {
+            id: item.cacamba_id,
+            nome: item.nome,
+            tipo_residuo: item.tipo_residuo,
+            preco_diaria: item.preco_diaria
+          }
         }))
       });
     } catch (error) {
@@ -152,9 +155,12 @@ const carrinhoController = {
           cacamba_id: item.cacamba_id,
           quantidade: item.quantidade,
           dias_aluguel: item.dias_aluguel,
-          nome: item.nome,
-          tipo_residuo: item.tipo_residuo,
-          preco_diaria: item.preco_diaria
+          cacamba: {
+            id: item.cacamba_id,
+            nome: item.nome,
+            tipo_residuo: item.tipo_residuo,
+            preco_diaria: item.preco_diaria
+          }
         }))
       });
     } catch (error) {
@@ -226,9 +232,12 @@ const carrinhoController = {
           cacamba_id: item.cacamba_id,
           quantidade: item.quantidade,
           dias_aluguel: item.dias_aluguel,
-          nome: item.nome,
-          tipo_residuo: item.tipo_residuo,
-          preco_diaria: item.preco_diaria
+          cacamba: {
+            id: item.cacamba_id,
+            nome: item.nome,
+            tipo_residuo: item.tipo_residuo,
+            preco_diaria: item.preco_diaria
+          }
         }))
       });
     } catch (error) {
@@ -264,6 +273,49 @@ const carrinhoController = {
     } catch (error) {
       console.error("Erro ao limpar carrinho:", error);
       return res.status(500).json({ error: "Erro interno ao limpar o carrinho." });
+    }
+  },
+
+  /**
+   * DELETE /api/carrinho/itens/:id
+   * Remove um item específico do carrinho.
+   */
+  async removerItem(req, res) {
+    try {
+      const consumidor_id = req.usuario_id;
+      const { id } = req.params;
+
+      // Verificar se o item pertence ao carrinho do consumidor
+      const itemRows = await sql`
+        SELECT ic.id, ic.carrinho_id
+        FROM itens_carrinho ic
+        JOIN carrinho c ON c.id = ic.carrinho_id
+        WHERE ic.id = ${id} AND c.consumidor_id = ${consumidor_id}
+      `;
+
+      if (itemRows.length === 0) {
+        return res.status(404).json({ error: "Item não encontrado no carrinho." });
+      }
+
+      const carrinho_id = itemRows[0].carrinho_id;
+
+      // Deletar o item
+      await sql`DELETE FROM itens_carrinho WHERE id = ${id}`;
+
+      // Verificar quantos itens sobraram
+      const itensRestantes = await sql`
+        SELECT COUNT(*) as count FROM itens_carrinho WHERE carrinho_id = ${carrinho_id}
+      `;
+
+      if (parseInt(itensRestantes[0].count) === 0) {
+        // Se foi o último item, deletar o carrinho
+        await sql`DELETE FROM carrinho WHERE id = ${carrinho_id}`;
+      }
+
+      return res.status(200).json({ message: "Item removido com sucesso" });
+    } catch (error) {
+      console.error("Erro ao remover item do carrinho:", error);
+      return res.status(500).json({ error: "Erro interno ao remover item do carrinho." });
     }
   }
 };

@@ -9,7 +9,7 @@ const app = express();
 // --- Middlewares Globais ---
 // Permite que o front-end faça requisições para a API (Restrito + Localhost para Dev)
 const allowedOrigins = [
-  'https://app.collectexpress.com',
+  'https://collectexpress.onrender.com.com',
   'http://localhost:8081',
   'http://localhost:3000'
 ];

@@ -171,18 +171,32 @@ const carrinhoController = {
 
   /**
    * PUT /api/carrinho/itens/:id
-   * Atualiza a quantidade de um item no carrinho.
-   * Body: { quantidade (1-10) }
+   * Atualiza a quantidade e/ou dias_aluguel de um item no carrinho.
+   * Body: { quantidade (1-10), dias_aluguel (1-30) } - ambos opcionais
    */
   async atualizarItem(req, res) {
     try {
       const consumidor_id = req.usuario_id;
       const { id } = req.params;
-      const { quantidade } = req.body;
+      const { quantidade, dias_aluguel } = req.body;
 
-      // Validar quantidade (1-10)
-      if (quantidade === undefined || quantidade === null || !Number.isInteger(quantidade) || quantidade < 1 || quantidade > 10) {
-        return res.status(400).json({ error: "O campo 'quantidade' deve ser um inteiro entre 1 e 10." });
+      // Validar que ao menos um campo foi enviado
+      if (quantidade === undefined && dias_aluguel === undefined) {
+        return res.status(400).json({ error: "Informe 'quantidade' e/ou 'dias_aluguel' para atualizar." });
+      }
+
+      // Validar quantidade (1-10) se enviada
+      if (quantidade !== undefined) {
+        if (quantidade === null || !Number.isInteger(quantidade) || quantidade < 1 || quantidade > 10) {
+          return res.status(400).json({ error: "O campo 'quantidade' deve ser um inteiro entre 1 e 10." });
+        }
+      }
+
+      // Validar dias_aluguel (1-30) se enviado
+      if (dias_aluguel !== undefined) {
+        if (dias_aluguel === null || !Number.isInteger(dias_aluguel) || dias_aluguel < 1 || dias_aluguel > 30) {
+          return res.status(400).json({ error: "O campo 'dias_aluguel' deve ser um inteiro entre 1 e 30." });
+        }
       }
 
       // Verificar se o item pertence ao carrinho do consumidor
@@ -199,10 +213,20 @@ const carrinhoController = {
 
       const carrinho_id = itemRows[0].carrinho_id;
 
-      // Atualizar quantidade
-      await sql`
-        UPDATE itens_carrinho SET quantidade = ${quantidade} WHERE id = ${id}
-      `;
+      // Atualizar campos enviados
+      if (quantidade !== undefined && dias_aluguel !== undefined) {
+        await sql`
+          UPDATE itens_carrinho SET quantidade = ${quantidade}, dias_aluguel = ${dias_aluguel} WHERE id = ${id}
+        `;
+      } else if (quantidade !== undefined) {
+        await sql`
+          UPDATE itens_carrinho SET quantidade = ${quantidade} WHERE id = ${id}
+        `;
+      } else {
+        await sql`
+          UPDATE itens_carrinho SET dias_aluguel = ${dias_aluguel} WHERE id = ${id}
+        `;
+      }
 
       // Buscar carrinho atualizado
       const carrinhoRows = await sql`

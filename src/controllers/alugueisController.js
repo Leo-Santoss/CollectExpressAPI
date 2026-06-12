@@ -4,12 +4,13 @@ const alugueisController = {
   /**
    * POST /api/alugueis/checkout
    * Finaliza o carrinho criando um pedido de aluguel.
-   * Body: { endereco_id, data_inicio (YYYY-MM-DD), dias_aluguel (1-30) }
+   * Body: { endereco_id, data_inicio (YYYY-MM-DD) }
+   * dias_aluguel é calculado a partir dos itens individuais do carrinho.
    */
   async checkout(req, res) {
     try {
       const consumidor_id = req.usuario_id;
-      const { endereco_id, data_inicio, dias_aluguel } = req.body;
+      const { endereco_id, data_inicio } = req.body;
 
       // 1. Verificar se o carrinho existe e não está vazio
       const carrinhoRows = await sql`
@@ -63,11 +64,6 @@ const alugueisController = {
         return res.status(400).json({ error: "O campo 'data_inicio' deve ser entre 1 e 60 dias a partir de hoje" });
       }
 
-      // Validar dias_aluguel (1-30)
-      if (dias_aluguel === undefined || dias_aluguel === null || !Number.isInteger(dias_aluguel) || dias_aluguel < 1 || dias_aluguel > 30) {
-        return res.status(400).json({ error: "O campo 'dias_aluguel' deve ser um inteiro entre 1 e 30" });
-      }
-
       // 3. Validar que o endereço pertence ao consumidor
       const enderecoRows = await sql`
         SELECT id FROM enderecos
@@ -86,22 +82,27 @@ const alugueisController = {
 
       const taxa_entrega = detalhesRows.length > 0 ? Number(detalhesRows[0].taxa_entrega) : 0;
 
-      // 5. Calcular preco_final: sum(quantidade × dias_aluguel × preco_diaria) + taxa_entrega
+      // 5. Calcular preco_final usando dias_aluguel individual de cada item
+      // Fórmula: sum(quantidade × dias_aluguel_do_item × preco_diaria) + taxa_entrega
       let totalItens = 0;
+      let maxDiasAluguel = 0;
       itensCarrinho.forEach(item => {
-        totalItens += item.quantidade * dias_aluguel * Number(item.preco_diaria);
+        totalItens += item.quantidade * item.dias_aluguel * Number(item.preco_diaria);
+        if (item.dias_aluguel > maxDiasAluguel) {
+          maxDiasAluguel = item.dias_aluguel;
+        }
       });
 
       const preco_final = totalItens + taxa_entrega;
 
-      // 6. Criar registro de aluguel
+      // 6. Criar registro de aluguel (dias_aluguel = maior período entre os itens, para referência)
       const novoPedido = await sql`
         INSERT INTO alugueis (
           id, consumidor_id, cacambeiro_id, endereco_id, data_pedido, data_inicio,
           dias_aluguel, preco_final, status_pagamento, status_aluguel
         ) VALUES (
           gen_random_uuid(), ${consumidor_id}, ${cacambeiro_id}, ${endereco_id},
-          NOW(), ${data_inicio}, ${dias_aluguel}, ${preco_final},
+          NOW(), ${data_inicio}, ${maxDiasAluguel}, ${preco_final},
           'PENDENTE', 'AGUARDANDO_ENTREGA'
         )
         RETURNING *
@@ -109,11 +110,11 @@ const alugueisController = {
 
       const aluguel_id = novoPedido[0].id;
 
-      // 7. Criar itens_aluguel para cada item do carrinho
+      // 7. Criar itens_aluguel para cada item do carrinho (com dias_aluguel individual)
       for (const item of itensCarrinho) {
         await sql`
           INSERT INTO itens_aluguel (id, aluguel_id, cacamba_id, quantidade, dias_aluguel, preco_diaria)
-          VALUES (gen_random_uuid(), ${aluguel_id}, ${item.cacamba_id}, ${item.quantidade}, ${dias_aluguel}, ${item.preco_diaria})
+          VALUES (gen_random_uuid(), ${aluguel_id}, ${item.cacamba_id}, ${item.quantidade}, ${item.dias_aluguel}, ${item.preco_diaria})
         `;
       }
 

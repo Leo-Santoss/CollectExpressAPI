@@ -34,6 +34,14 @@ app.use(globalLimiter);
 
 app.use(express.json()); // Permite que a API receba e envie dados no formato JSON
 
+app.get("/", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "CollectExpress API online",
+    health: "/api/health"
+  });
+});
+
 // --- Rota de Health Check ---
 // Rota simples para verificar se o servidor está no ar
 app.get("/api/health", (req, res) => {
